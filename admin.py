@@ -152,3 +152,61 @@ async def register_user(user: UserCreate, db: db_dependency):
         if db.query(Users).filter(Users.email == user.email).first():
             raise HTTPException(status_code=409, detail="Email already registered")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+    
+# ---------- Change on User by Admin ----------
+class UserUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+    discord_id: str | None = None
+    inscription_date: date | None = None
+    inscription_status: str | None = None  # valid / pending / denied
+    rp_first_name: str | None = None
+    rp_last_name: str | None = None
+    rp_birthdate: date | None = None
+    rp_gender: str | None = None
+    rp_grade: str | None = None
+    rp_affectation: str | None = None
+    rp_qualif: str | None = None
+    rp_nipol: str | None = None
+    rp_server: str | None = None
+    rp_service: str | None = None  # Police(PN) / Gendarmerie(GN) / Police Municipale(PM)
+    privileges: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+@router.patch("/users_update/{user_id}", response_model=UserAdminView)
+async def update_user(user_id: int, user_update: UserUpdate, db: db_dependency):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.email in protectedUsers:
+        raise HTTPException(status_code=403, detail="Cannot update protected users")
+
+    update_data = user_update.model_dump(exclude_unset=True)
+
+    # Email uniqueness check if email change requested
+    new_email = update_data.get("email")
+    if new_email and new_email != user.email:
+        if db.query(Users).filter(Users.email == new_email).first():
+            raise HTTPException(status_code=409, detail="Email already in use")
+
+    for field, value in update_data.items():
+        setattr(user, field, value)
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+class PasswordUpdate(BaseModel):
+    new_password: str
+
+@router.post("/users/{user_id}/password")
+async def update_password(user_id: int, body: PasswordUpdate, db: db_dependency):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.email in protectedUsers:
+        raise HTTPException(status_code=403, detail="Cannot update protected users")
+    user.password = bcrypt_context.hash(body.new_password)  # type: ignore
+    db.commit()
+    return {"message": "Password updated"}

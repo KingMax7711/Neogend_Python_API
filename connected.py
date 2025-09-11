@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
 from typing import Annotated, List
 from models import Users  # Add this import for the Users model
+from passlib.context import CryptContext
 import models
 from auth import get_current_user
 
@@ -17,6 +18,8 @@ router = APIRouter(
     tags=["connected"],
     dependencies=[Depends(connection_required)]
 )
+
+bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class UserPublic(BaseModel):
@@ -43,3 +46,22 @@ user_dependency = Annotated[models.Users, Depends(get_current_user)]
 async def read_all_users(db: db_dependency):
     users = db.query(Users).all()
     return users
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+@router.post("/user/password_change/")
+async def change_password(password_change: PasswordChangeRequest, db: db_dependency, user: user_dependency):
+    # Recharger l'utilisateur dans la session courante (l'objet injecté vient d'une autre session)
+    user_db = db.query(Users).filter(Users.id == user.id).first()
+    if not user_db:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not bcrypt_context.verify(password_change.old_password, user_db.password):  # type: ignore
+        raise HTTPException(status_code=400, detail="Old password is incorrect")
+
+    user_db.token_version += 1 #type: ignore
+    user_db.password = bcrypt_context.hash(password_change.new_password)  # type: ignore
+    db.commit()
+    db.refresh(user_db)
+    return {"message": "Password changed successfully"}

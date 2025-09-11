@@ -28,3 +28,5 @@ class Users(Base):
 
     # Admin
     privileges = Column(String, index=True, nullable=True) # Staff / Admin / Owner
+    # Version des refresh tokens : incrémentée pour invalider tous les anciens
+    token_version = Column(Integer, default=0, nullable=False)

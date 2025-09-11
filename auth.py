@@ -49,11 +49,11 @@ def _create_token(payload: dict, expires_delta: timedelta) -> str:
     to_encode["exp"] = datetime.utcnow() + expires_delta
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def create_access_token(email: str, user_id: int) -> str:
-    return _create_token({"sub": email, "id": user_id}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+def create_access_token(email: str, user_id: int, token_version: int) -> str:
+    return _create_token({"sub": email, "id": user_id, "ver": token_version}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
-def create_refresh_token(email: str, user_id: int) -> str:
-    return _create_token({"sub": email, "id": user_id}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+def create_refresh_token(email: str, user_id: int, token_version: int) -> str:
+    return _create_token({"sub": email, "id": user_id, "ver": token_version}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
 
 def authenticate_user(email: str, password: str, db: Session):
     user = db.query(Users).filter(Users.email == email).first()
@@ -73,8 +73,8 @@ async def login_for_acces_token(form_data: Annotated[OAuth2PasswordRequestForm, 
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = create_access_token(user.email, user.id) # type: ignore
-    refresh_token = create_refresh_token(user.email, user.id) # type: ignore
+    access_token = create_access_token(user.email, user.id, user.token_version) # type: ignore
+    refresh_token = create_refresh_token(user.email, user.id, user.token_version) # type: ignore
 
     resp = JSONResponse({
         "access_token": access_token,
@@ -103,6 +103,7 @@ async def refresh_access_token(request: Request, db: db_dependency):
         payload = jwt.decode(rt, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
         user_id = payload.get("id")
+        ver = payload.get("ver")
         if not email or not user_id:
             raise JWTError("invalid payload")
     except JWTError:
@@ -112,7 +113,11 @@ async def refresh_access_token(request: Request, db: db_dependency):
     if not user:
         raise HTTPException(status_code=401, detail="User not found for refresh")
 
-    new_access = create_access_token(user.email, user.id) # type: ignore
+    # Vérifier la version stockée
+    if ver is None or ver != user.token_version:  # type: ignore
+        raise HTTPException(status_code=401, detail="Refresh token invalidated")
+
+    new_access = create_access_token(user.email, user.id, user.token_version) # type: ignore
     return {"access_token": new_access, "token_type": "bearer"}
 
 # ---------- logout: supprime le cookie ----------
@@ -128,6 +133,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: db
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub") # type: ignore
         user_id: int = payload.get("id") # type: ignore
+        ver: int | None = payload.get("ver") # type: ignore
         if email is None or user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -147,4 +153,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: db
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Optionnel : vérifier version pour les access tokens si on veut force logout global
+    if ver is not None and ver != user.token_version:  # type: ignore
+        raise HTTPException(status_code=401, detail="Token version invalidated")
     return user
