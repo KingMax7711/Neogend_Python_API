@@ -1,0 +1,12 @@
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload --ssl-keyfile ../certs/dev-key.pem --ssl-certfile ../certs/dev-cert.pem
+
+uvicorn main:app --host 0.0.0.0 --port 8000 --ssl-keyfile ../certs/dev-key.pem --ssl-certfile ../certs/dev-cert.pem --log-config logging.conf
+
+ALEMBIC Migration
+.\env\Scripts\alembic.exe revision --autogenerate -m "votre message"
+
+ALEMBIC Update
+.\env\Scripts\alembic.exe upgrade head
+
+ALEMBIC Ctr+Z
+.\env\Scripts\alembic.exe downgrade -1
