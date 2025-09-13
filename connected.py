@@ -62,6 +62,7 @@ async def change_password(password_change: PasswordChangeRequest, db: db_depende
 
     user_db.token_version += 1 #type: ignore
     user_db.password = bcrypt_context.hash(password_change.new_password)  # type: ignore
+    user_db.temp_password = False # type: ignore
     db.commit()
     db.refresh(user_db)
     return {"message": "Password changed successfully"}

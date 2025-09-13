@@ -84,6 +84,7 @@ class UserPublic(BaseModel):
     first_name: str
     last_name: str
     email: str
+    temp_password: bool
     discord_id: str | None = None
     inscription_date: date | None = None
     inscription_status: str | None = None  # valid / pending / denied
@@ -99,10 +100,6 @@ class UserPublic(BaseModel):
     rp_service: str | None = None  # Police(PN) / Gendarmerie(GN) / Police Municipale(PM)
     privileges: str | None = None
     model_config = ConfigDict(from_attributes=True)
-
-class LoginRequest(BaseModel):
-    email: str
-    password: str
 
 def get_db():
     db = SessionLocal()

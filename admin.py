@@ -46,6 +46,7 @@ class UserAdminView(BaseModel):
     first_name: str
     last_name: str
     email: str
+    temp_password: bool
     discord_id: str | None
     inscription_date: date | None
     inscription_status: str | None  # valid / pending / denied
@@ -136,7 +137,7 @@ async def register_user(user: UserCreate, db: db_dependency):
         rp_birthdate=user.rp_birthdate,
         rp_grade=user.rp_grade,
         rp_affectation=user.rp_affectation,
-        rp_qualif="",
+        rp_qualif="afp", #TODO: DEFAUT A CHANGER (Voir IRL)
         rp_nipol=user.rp_nipol,
         rp_server=user.rp_server,
         rp_service=user.rp_service,
@@ -208,5 +209,6 @@ async def update_password(user_id: int, body: PasswordUpdate, db: db_dependency)
     if user.email in protectedUsers:
         raise HTTPException(status_code=403, detail="Cannot update protected users")
     user.password = bcrypt_context.hash(body.new_password)  # type: ignore
+    user.temp_password = True # type: ignore
     db.commit()
     return {"message": "Password updated"}
