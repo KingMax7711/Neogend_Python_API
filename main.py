@@ -1,7 +1,7 @@
 from datetime import date
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from pydantic import BaseModel, ConfigDict
-from typing import List, Annotated
+from typing import List, Annotated, Optional, cast
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +15,9 @@ import models
 import auth
 import admin
 import connected
+import proprietaires
 from auth import get_current_user
+from log import api_log
 
 load_dotenv()
 
@@ -26,6 +28,7 @@ START_TIME = time.time()
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(connected.router)
+app.include_router(proprietaires.router)
 
 # Détermine dynamiquement les origines CORS autorisées
 _frontend_origins_env = os.getenv("FRONTEND_ORIGINS", "")
@@ -47,6 +50,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def _on_startup() -> None:
+    # Force l'initialisation du logger et la création du répertoire logs
+    api_log("app.startup", level="INFO", data={"version": app.version})
 
 # Exécuter create_all uniquement hors production, sauf si DB_BOOTSTRAP=true
 IS_PROD = os.getenv("APP_RELEASE_STATUS", "").lower() == "prod"
@@ -112,19 +120,32 @@ db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[models.Users, Depends(get_current_user)]
 
 @app.get("/users/me/", response_model=UserPublic)
-async def read_user_me(current_user: user_dependency):
+async def read_user_me(current_user: user_dependency, request: Request):
     if current_user is None:
+        api_log("users.me.unauthenticated", level="WARNING", request=request, tags=["users", "me"], correlation_id=request.headers.get("x-correlation-id"))
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    user_id: Optional[int] = cast(Optional[int], getattr(current_user, "id", None))
+    email: Optional[str] = cast(Optional[str], getattr(current_user, "email", None))
+    api_log(
+        "users.me.success",
+        level="INFO",
+        request=request,
+        user_id=user_id,
+        email=email,
+        tags=["users", "me"],
+        correlation_id=request.headers.get("x-correlation-id"),
+    )
     return current_user
 
 @app.get("/health")
-async def health(db: db_dependency):
+async def health(db: db_dependency, request: Request):
     uptime_s = round(time.time() - START_TIME, 3)
     try:
         db.execute(text("SELECT 1"))
         db_ok = True
     except Exception:
         db_ok = False
+        api_log("health.check.failed", level="ERROR", request=request, correlation_id=request.headers.get("x-correlation-id"))
     return {
         "status": "ok" if db_ok else "degraded",
         "db_health": "ok" if db_ok else "degraded",

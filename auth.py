@@ -12,6 +12,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from dotenv import load_dotenv
 import os
+from log import api_log
 
 load_dotenv()
 
@@ -23,7 +24,7 @@ router = APIRouter(
 SECRET_KEY = str(os.getenv("SECRET_KEY"))
 ALGORITHM = "HS256"
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -49,14 +50,14 @@ def _create_token(payload: dict, expires_delta: timedelta) -> str:
     to_encode["exp"] = datetime.utcnow() + expires_delta
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def create_access_token(email: str, user_id: int, token_version: int) -> str:
-    return _create_token({"sub": email, "id": user_id, "ver": token_version}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+def create_access_token(nipol: str, user_id: int, token_version: int) -> str:
+    return _create_token({"sub": nipol, "id": user_id, "ver": token_version}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
-def create_refresh_token(email: str, user_id: int, token_version: int) -> str:
-    return _create_token({"sub": email, "id": user_id, "ver": token_version}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+def create_refresh_token(nipol: str, user_id: int, token_version: int) -> str:
+    return _create_token({"sub": nipol, "id": user_id, "ver": token_version}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
 
-def authenticate_user(email: str, password: str, db: Session):
-    user = db.query(Users).filter(Users.email == email).first()
+def authenticate_user(nipol: str, password: str, db: Session):
+    user = db.query(Users).filter(Users.rp_nipol == nipol).first()
     if not user:
         return False
     if not bcrypt_context.verify(password, user.password): # type: ignore
@@ -65,16 +66,17 @@ def authenticate_user(email: str, password: str, db: Session):
 
 # ---------- Login ----------
 @router.post("/token", response_model=Token)
-async def login_for_acces_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency):
+async def login_for_acces_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency, request: Request):
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
+        api_log("login.failed", level="INFO", request=request, tags=["auth", "login"], email=form_data.username, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect nipol or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = create_access_token(user.email, user.id, user.token_version) # type: ignore
-    refresh_token = create_refresh_token(user.email, user.id, user.token_version) # type: ignore
+    access_token = create_access_token(user.rp_nipol, user.id, user.token_version) # type: ignore
+    refresh_token = create_refresh_token(user.rp_nipol, user.id, user.token_version) # type: ignore
 
     resp = JSONResponse({
         "access_token": access_token,
@@ -90,6 +92,7 @@ async def login_for_acces_token(form_data: Annotated[OAuth2PasswordRequestForm, 
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
         path="/",
     )
+    api_log("login.success", level="INFO", request=request, tags=["auth", "login"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return resp
 
 # ---------- refresh: lit le cookie, renvoie un NOUVEL access ----------
@@ -101,23 +104,24 @@ async def refresh_access_token(request: Request, db: db_dependency):
 
     try:
         payload = jwt.decode(rt, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
+        nipol = payload.get("sub")
         user_id = payload.get("id")
         ver = payload.get("ver")
-        if not email or not user_id:
+        if not nipol or not user_id:
             raise JWTError("invalid payload")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    user = db.query(Users).filter(Users.id == user_id, Users.email == email).first()
+    user = db.query(Users).filter(Users.id == user_id, Users.rp_nipol == nipol).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found for refresh")
 
     # Vérifier la version stockée
     if ver is None or ver != user.token_version:  # type: ignore
-        raise HTTPException(status_code=401, detail="Refresh token invalidated")
+        raise HTTPException(status_code=403, detail="Refresh token invalidated")
 
-    new_access = create_access_token(user.email, user.id, user.token_version) # type: ignore
+    new_access = create_access_token(user.rp_nipol, user.id, user.token_version) # type: ignore
+    api_log("token.refresh", level="INFO", request=request, tags=["auth", "refresh"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"access_token": new_access, "token_type": "bearer"}
 
 # ---------- logout: supprime le cookie ----------
@@ -125,16 +129,17 @@ async def refresh_access_token(request: Request, db: db_dependency):
 async def logout():
     resp = JSONResponse({"message": "logged out"})
     resp.delete_cookie("refresh_token", path="/")
+    api_log("logout.success", level="INFO", request=request, tags=["auth", "logout"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return resp
 
 # ---------- get_current_user : Lit l'acces Token et renvoie l'utilisateur ----------
 async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: db_dependency):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub") # type: ignore
+        nipol: str = payload.get("sub") # type: ignore
         user_id: int = payload.get("id") # type: ignore
         ver: int | None = payload.get("ver") # type: ignore
-        if email is None or user_id is None:
+        if nipol is None or user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
@@ -146,7 +151,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: db
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user = db.query(Users).filter(Users.email == email, Users.id == user_id).first()
+    user = db.query(Users).filter(Users.rp_nipol == nipol, Users.id == user_id).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -155,5 +160,5 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: db
         )
     # Optionnel : vérifier version pour les access tokens si on veut force logout global
     if ver is not None and ver != user.token_version:  # type: ignore
-        raise HTTPException(status_code=401, detail="Token version invalidated")
+        raise HTTPException(status_code=403, detail="Token version invalidated")
     return user
