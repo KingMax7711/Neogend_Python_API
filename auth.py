@@ -129,7 +129,6 @@ async def refresh_access_token(request: Request, db: db_dependency):
 async def logout():
     resp = JSONResponse({"message": "logged out"})
     resp.delete_cookie("refresh_token", path="/")
-    api_log("logout.success", level="INFO", request=request, tags=["auth", "logout"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return resp
 
 # ---------- get_current_user : Lit l'acces Token et renvoie l'utilisateur ----------

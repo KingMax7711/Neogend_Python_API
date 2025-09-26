@@ -93,8 +93,8 @@ class fnpc(Base):
     cat_de = Column(Boolean, index=True)
     cat_de_delivrance = Column(Date, index=True, nullable=True)
     code_restriction = Column(String, index=True, nullable=True) # Ex: 01, 02, 03... (Porteur de lunettes, etc.)
-    propbatoire = Column(Boolean, index=True)
-    date_propabatoire = Column(Date, index=True, nullable=True)
+    probatoire = Column(Boolean, index=True)
+    date_probatoire = Column(Date, index=True, nullable=True)
     points = Column(Integer, index=True)
 
     # Collones Etrangères
@@ -104,9 +104,15 @@ class infractions_routieres(Base):
     __tablename__ = "infractions_routieres"
 
     id = Column(Integer, primary_key=True, index=True)
-    code = Column(String, index=True)
-    description = Column(String, index=True)
+    article = Column(String, index=True, nullable=True)
+    classe = Column(String, index=True)
+    natinf = Column(String, index=True, nullable=True)
     points = Column(Integer, index=True)
+    nipol = Column(String, index=True)
+    date_infraction = Column(Date, index=True)
+    details = Column(String, index=True, nullable=True)
+    statut = Column(String, index=True) # en_cours / payee / annulee
+
 
     # Collones Etrangères
     neph = Column(Integer, ForeignKey("fnpc.neph"))
