@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, BigInteger, String, Date
 from database import Base
 
 class Users(Base):
@@ -55,7 +55,7 @@ class fnpc(Base):
 
     # Collones Local 
     id = Column(Integer, primary_key=True, index=True)
-    neph = Column(Integer, index=True, unique=True)
+    neph = Column(BigInteger, index=True, unique=True)
     numero_titre = Column(Integer, index=True)
     date_delivrance = Column(Date, index=True)
     prefecture_delivrance = Column(String, index=True)
@@ -115,4 +115,27 @@ class infractions_routieres(Base):
 
 
     # Collones Etrangères
-    neph = Column(Integer, ForeignKey("fnpc.neph"))
+    neph = Column(BigInteger, ForeignKey("fnpc.neph"))
+
+class fpr(Base):
+    __tablename__ = "fpr"
+
+    id = Column(Integer, primary_key=True, index=True)
+    exactitude = Column(String, index=True, nullable=True) #? Identité confirmé, non confirmé, usurpée
+
+    date_enregistrement = Column(Date, index=True)
+    motif_enregistrement = Column(String, index=True, nullable=True)
+    autorite_enregistrement = Column(String, index=True, nullable=True)
+    lieu_faits = Column(String, index=True, nullable=True)
+    details = Column(String, index=True, nullable=True)
+
+    dangerosite = Column(String, index=True, nullable=True) #? Faible, moyenne, élevée
+    signes_distinctifs = Column(String, index=True, nullable=True)
+
+    conduite = Column(String, index=True, nullable=True) #? Conduite a tenir en cas de découverte
+
+
+    # Clé Etrangère
+    prop_id = Column(Integer, ForeignKey("proprietaires.id"))
+    neph = Column(BigInteger, ForeignKey("fnpc.neph"), nullable=True) #? nullable : une FPR peut être créée sans FNPC (ex: si la personne n'a pas le permis)
+    num_fijait = Column(BigInteger, nullable=True) #TODO: Faire une relation avec le FIJAIT quand créer

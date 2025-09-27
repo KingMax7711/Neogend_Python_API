@@ -198,6 +198,10 @@ async def read_fnpc(fnpc_id: int, db: db_dependency, user: user_dependency, requ
 @router.post("/create/", response_model=fnpcPublic)
 async def create_fnpc(fnpc: fnpcCreate, db: db_dependency, user: user_dependency, request: Request):
     new_fnpc = models.fnpc(**fnpc.model_dump())
+    # Vérifie que le NEPH n'existe pas déjà
+    existing_fnpc = db.query(models.fnpc).filter(models.fnpc.neph == fnpc.neph).first()
+    if existing_fnpc:
+        raise HTTPException(status_code=400, detail="Un FNPC avec ce NEPH existe déjà")
     db.add(new_fnpc)
     db.commit()
     db.refresh(new_fnpc)
