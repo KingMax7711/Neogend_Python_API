@@ -11,3 +11,6 @@ env/
 
 logs/
 *.log
+
+alembic.ini
+alembic/
