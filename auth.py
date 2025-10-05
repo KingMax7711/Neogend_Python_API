@@ -13,6 +13,7 @@ from jose import JWTError, jwt
 from dotenv import load_dotenv
 import os
 from log import api_log
+from typing import Literal, cast
 
 load_dotenv()
 
@@ -26,6 +27,14 @@ ALGORITHM = "HS256"
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 30
+
+# Cookies config
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
+_raw_samesite = os.getenv("COOKIE_SAMESITE", "none" if COOKIE_SECURE else "lax").lower()
+CookieSameSite = Literal['lax', 'strict', 'none']
+if _raw_samesite not in ("lax", "strict", "none"):
+    _raw_samesite = "none" if COOKIE_SECURE else "lax"
+COOKIE_SAMESITE: CookieSameSite = cast(CookieSameSite, _raw_samesite)
 
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_bearer = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -87,8 +96,8 @@ async def login_for_acces_token(form_data: Annotated[OAuth2PasswordRequestForm, 
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,  # "none" exige HTTPS côté navigateur
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
         path="/",
     )

@@ -9,7 +9,7 @@ class Users(Base):
     first_name = Column(String, index=True)
     last_name = Column(String, index=True)
     email = Column(String, index=True)
-    password = Column(String, index=True)
+    password = Column(String)
     temp_password = Column(Boolean, default=True, nullable=False, server_default="true") # Force user to change password on first login
     discord_id = Column(String, index=True, nullable=True)
     inscription_date = Column(Date, index=True, nullable=True)
