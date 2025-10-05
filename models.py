@@ -139,3 +139,46 @@ class fpr(Base):
     prop_id = Column(Integer, ForeignKey("proprietaires.id"))
     neph = Column(BigInteger, ForeignKey("fnpc.neph"), nullable=True) #? nullable : une FPR peut être créée sans FNPC (ex: si la personne n'a pas le permis)
     num_fijait = Column(BigInteger, nullable=True) #TODO: Faire une relation avec le FIJAIT quand créer
+
+class siv(Base):
+    __tablename__ = "siv"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Propriétaire
+    prop_id = Column(Integer, ForeignKey("proprietaires.id"))
+    co_prop_id = Column(Integer, ForeignKey("proprietaires.id"), nullable=True) #? Co-propriétaire, nullable si pas de co-propriétaire
+    
+    # Certificat d'immatriculation
+    ci_etat_administratif = Column(String, index=True, nullable=True) #? (Valide, Volé, Perdu, Détruit, Annulé)
+    ci_numero_immatriculation = Column(String, index=True, nullable=True)
+    ci_date_premiere_circulation = Column(Date, index=True, nullable=True) #? Date de la première immatriculation du véhicule
+    ci_date_certificat = Column(Date, index=True, nullable=True) #? Date de délivrance du certificat actuel
+
+    # Véhicule
+    vl_etat_administratif = Column(String, index=True, nullable=True) #? (Saisi, Mis en Fourrière, Immobilisé, Epave)
+    vl_marque = Column(String, index=True, nullable=True)
+    vl_denomination_commerciale = Column(String, index=True, nullable=True)
+    vl_version = Column(String, index=True, nullable=True)
+    vl_couleur_dominante = Column(String, index=True, nullable=True)
+
+    # Caractéristiques techniques
+    tech_puissance_kw = Column(Integer, index=True, nullable=True)
+    tech_puissance_ch = Column(Integer, index=True, nullable=True)
+    tech_puissance_fiscale = Column(Integer, index=True, nullable=True)
+    tech_cylindree = Column(Integer, index=True, nullable=True)
+    tech_carburant = Column(String, index=True, nullable=True) #? (GO, ES, EL, EE, etc.)
+    tech_emissions_co2 = Column(Integer, index=True, nullable=True) #? en g/km
+
+    tech_poids_vide = Column(Integer, index=True, nullable=True) #? Poids à vide en kg
+    tech_poids_ptac = Column(Integer, index=True, nullable=True) #? PTAC en kg
+
+    tech_places_assises = Column(Integer, index=True, nullable=True)
+    tech_places_debout = Column(Integer, index=True, nullable=True)
+
+    # Controles techniques
+    ct_date_echeance = Column(Date, index=True, nullable=True) #? Date d'échéance du contrôle technique
+
+    # Assurance
+    as_assureur = Column(String, index=True, nullable=True)
+    as_date_contrat = Column(Date, index=True, nullable=True)

@@ -8,5 +8,5 @@ ALEMBIC Migration
 ALEMBIC Update
 .\env\Scripts\alembic.exe upgrade head
 
-ALEMBIC Ctr+Z
+ALEMBIC Cancel
 .\env\Scripts\alembic.exe downgrade -1

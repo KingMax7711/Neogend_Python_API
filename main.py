@@ -19,6 +19,7 @@ import proprietaires
 import fnpc
 import infractions
 import fpr
+import siv
 
 import public
 from auth import get_current_user
@@ -36,8 +37,11 @@ app.include_router(connected.router)
 app.include_router(proprietaires.router)
 app.include_router(fnpc.router)
 app.include_router(infractions.router)
-app.include_router(public.router)
 app.include_router(fpr.router)
+app.include_router(siv.router)
+
+app.include_router(public.router)
+
 
 # Détermine dynamiquement les origines CORS autorisées
 _frontend_origins_env = os.getenv("FRONTEND_ORIGINS", "")

@@ -80,7 +80,7 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[models.Users, Depends(get_current_user)]
 
-protectedUsers = ["maxime.czegledi@gmail.com"]
+protectedUsers = [""]
 
 @router.get("/users/", response_model=List[UserAdminView])
 async def read_all_users(db: db_dependency, request: Request):

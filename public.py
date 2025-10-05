@@ -125,6 +125,46 @@ class fprPublic(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class sivPublic(BaseModel):
+	id: int
+
+	# Propriétaire
+	prop_id: int
+	co_prop_id: int | None = None
+
+	# Certificat d'immatriculation
+	ci_etat_administratif: str | None = None
+	ci_numero_immatriculation: str | None = None
+	ci_date_premiere_circulation: date | None = None
+	ci_date_certificat: date | None = None
+
+	# Véhicule
+	vl_etat_administratif: str | None = None
+	vl_marque: str | None = None
+	vl_denomination_commerciale: str | None = None
+	vl_version: str | None = None
+	vl_couleur_dominante: str | None = None
+
+	# Caractéristiques techniques
+	tech_puissance_kw: int | None = None
+	tech_puissance_ch: int | None = None
+	tech_puissance_fiscale: int | None = None
+	tech_cylindree: int | None = None
+	tech_carburant: str | None = None
+	tech_emissions_co2: int | None = None
+	tech_poids_vide: int | None = None
+	tech_poids_ptac: int | None = None
+	tech_places_assises: int | None = None
+	tech_places_debout: int | None = None
+
+	# Contrôles techniques
+	ct_date_echeance: date | None = None
+
+	# Assurance
+	as_assureur: str | None = None
+	as_date_contrat: date | None = None
+
+	model_config = ConfigDict(from_attributes=True)
 
 def get_db():
     db = SessionLocal()
@@ -197,3 +237,18 @@ async def read_fpr(fpr_id: int, db: db_dependency, user: user_dependency, reques
         raise HTTPException(status_code=404, detail="FPR not found")
     api_log("fpr.read_one", level="INFO", request=request,email=user.email, user_id=user.id, tags=["fpr", "detail"], correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return fpr_record
+
+@router.get("/siv/read/", response_model=List[sivPublic])
+async def read_all_siv(db: db_dependency, user: user_dependency, request: Request):
+	records = db.query(models.siv).all()
+	api_log("siv.read_all", level="INFO", request=request, email=user.email, user_id=user.id, tags=["siv", "list"], correlation_id=request.headers.get("x-correlation-id"))  # type: ignore
+	return records
+
+
+@router.get("/siv/read/{siv_id}/", response_model=sivPublic)
+async def read_siv(siv_id: int, db: db_dependency, user: user_dependency, request: Request):
+	record = db.query(models.siv).filter(models.siv.id == siv_id).first()
+	if not record:
+		raise HTTPException(status_code=404, detail="siv record not found")
+	api_log("siv.read_one", level="INFO", request=request, email=user.email, user_id=user.id, tags=["siv", "detail"], correlation_id=request.headers.get("x-correlation-id"))  # type: ignore
+	return record
