@@ -83,21 +83,22 @@ user_dependency = Annotated[models.Users, Depends(get_current_user)]
 protectedUsers = [""]
 
 @router.get("/users/", response_model=List[UserAdminView])
-async def read_all_users(db: db_dependency, request: Request):
+async def read_all_users(db: db_dependency, request: Request, current_user: user_dependency):
     users = db.query(Users).all()
-    api_log("users.read_all", level="INFO", request=request, tags=["users", "list"], correlation_id=request.headers.get("x-correlation-id"))
+    api_log("users.read_all", level="INFO", request=request, tags=["users", "list"], user_id=current_user.id, email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return users
 
 @router.get("/users/{user_id}", response_model=UserAdminView)
-async def read_specific_user(user_id: int, db: db_dependency, request: Request):
+async def read_specific_user(user_id: int, db: db_dependency, request: Request, current_user: user_dependency):
     user = db.query(Users).filter(Users.id == user_id).first()
     if not user:
-        api_log("users.read_specific.failed", level="INFO", request=request, tags=["users", "read"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+        api_log("users.read_specific.failed", level="INFO", request=request, tags=["users", "read"], user_id=current_user.id, email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
         raise HTTPException(status_code=404, detail="User not found")
+    api_log("users.read_specific", level="INFO", request=request, tags=["users", "read"], user_id=current_user.id, email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return user
 
 @router.post("/set_user_privileges/{user_id}")
-async def set_user_privileges(user_id: int, db: db_dependency, request: Request, privilege: str = Body(..., embed=True)):
+async def set_user_privileges(user_id: int, db: db_dependency, request: Request, current_user: user_dependency, privilege: str = Body(..., embed=True)):
     list_of_privileges = ["player", "mod", "admin", "owner"]
     if privilege not in list_of_privileges:
         raise HTTPException(status_code=400, detail=f"Invalid privilege. Must be one of: {', '.join(list_of_privileges)}")
@@ -108,12 +109,12 @@ async def set_user_privileges(user_id: int, db: db_dependency, request: Request,
         raise HTTPException(status_code=403, detail="Cannot change privileges of protected users")
     user.privileges = privilege # type: ignore
     db.commit()
-    api_log("admin.set_user_privileges", level="INFO", request=request, tags=["admin", "set_privileges"], user_id=user.id,email=user.email, new_privilege=privilege, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("admin.set_user_privileges", level="INFO", request=request, tags=["admin", "set_privileges"], user_id=current_user.id,email=current_user.email, new_privilege=privilege, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "User privileges updated"}
 
 
 @router.delete("/delete_user/{user_id}")
-async def delete_user(user_id: int, db: db_dependency, request: Request):
+async def delete_user(user_id: int, db: db_dependency, request: Request, current_user: user_dependency):
     user = db.query(Users).filter(Users.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -121,12 +122,12 @@ async def delete_user(user_id: int, db: db_dependency, request: Request):
         raise HTTPException(status_code=403, detail="Cannot delete protected users")
     db.delete(user)
     db.commit()
-    api_log("admin.delete_user", level="WARNING", request=request, tags=["admin", "delete_user"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("admin.delete_user", level="WARNING", request=request, tags=["admin", "delete_user"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "User deleted successfully"}
 
 # ---------- Registration ----------
 @router.post("/register/", status_code=status.HTTP_201_CREATED)
-async def register_user(user: UserCreate, db: db_dependency, request: Request):
+async def register_user(user: UserCreate, db: db_dependency, request: Request, current_user: user_dependency):
     # Hash the password
     hashed_password = bcrypt_context.hash("temporaire")  # Default password, should be changed by user later
     db_user = Users(
@@ -153,7 +154,7 @@ async def register_user(user: UserCreate, db: db_dependency, request: Request):
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
-        api_log("admin.register_user", level="INFO", request=request, tags=["admin", "register_user"], user_id=db_user.id,email=db_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+        api_log("admin.register_user", level="INFO", request=request, tags=["admin", "register_user"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
         return {"message": "User registered successfully"}
     except Exception as e:
         db.rollback()
@@ -183,7 +184,7 @@ class UserUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 @router.patch("/users_update/{user_id}", response_model=UserAdminView)
-async def update_user(user_id: int, user_update: UserUpdate, db: db_dependency, request: Request):
+async def update_user(user_id: int, user_update: UserUpdate, db: db_dependency, request: Request, current_user: user_dependency):
     user = db.query(Users).filter(Users.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -203,14 +204,14 @@ async def update_user(user_id: int, user_update: UserUpdate, db: db_dependency, 
 
     db.commit()
     db.refresh(user)
-    api_log("admin.update_user", level="INFO", request=request, tags=["admin", "update_user"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("admin.update_user", level="INFO", request=request, tags=["admin", "update_user"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return user
 
 class PasswordUpdate(BaseModel):
     new_password: str
 
 @router.post("/users/{user_id}/password")
-async def update_password(user_id: int, body: PasswordUpdate, db: db_dependency, request: Request):
+async def update_password(user_id: int, body: PasswordUpdate, db: db_dependency, request: Request, current_user: user_dependency):
     user = db.query(Users).filter(Users.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -219,5 +220,5 @@ async def update_password(user_id: int, body: PasswordUpdate, db: db_dependency,
     user.password = bcrypt_context.hash(body.new_password)  # type: ignore
     user.temp_password = True # type: ignore
     db.commit()
-    api_log("admin.update_password", level="INFO", request=request, tags=["admin", "update_password"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("admin.update_password", level="INFO", request=request, tags=["admin", "update_password"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "Password updated"}

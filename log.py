@@ -61,17 +61,47 @@ class JSONFormatter(logging.Formatter):
             try:
                 path = getattr(getattr(req, "url", None), "path", None)
                 method = getattr(req, "method", None)
-                client = getattr(req, "client", None)
-                client_ip = getattr(client, "host", None) if client else None
-                headers = getattr(req, "headers", None)
+
+                # Try headers first (X-Forwarded-For, X-Real-Ip) — useful behind proxies/load-balancers
+                headers = None
+                try:
+                    headers = req.headers
+                except Exception:
+                    headers = getattr(req, "headers", None)
+
+                client_ip: Optional[str] = None
+                if headers is not None:
+                    # starlette Headers is Mapping-like, but be defensive
+                    try:
+                        xff = headers.get("x-forwarded-for") or headers.get("x-real-ip")
+                    except Exception:
+                        xff = headers.get("x-forwarded-for") if isinstance(headers, Mapping) else None
+                    if xff:
+                        # X-Forwarded-For may contain comma-separated list; take first
+                        client_ip = xff.split(",")[0].strip()
+
+                # Fallback to request.client (Starlette Address) or scope
+                if not client_ip:
+                    client = getattr(req, "client", None)
+                    if client is not None:
+                        # Address may be object with .host or a tuple
+                        client_ip = getattr(client, "host", None) if hasattr(client, "host") else (client[0] if isinstance(client, (list, tuple)) and client else None)
+
+                if not client_ip:
+                    try:
+                        scope = getattr(req, "scope", None)
+                        if scope and "client" in scope and scope["client"]:
+                            client_ip = scope["client"][0]
+                    except Exception:
+                        pass
+
                 user_agent = None
                 if headers is not None:
-                    # starlette Headers is Mapping-like
                     try:
                         user_agent = headers.get("user-agent")
                     except Exception:
-                        # Try mapping access
                         user_agent = headers.get("user-agent") if isinstance(headers, Mapping) else None
+
                 payload["request"] = {
                     "method": method,
                     "path": path,
