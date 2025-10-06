@@ -27,4 +27,15 @@ echo "[start] Running Alembic migrations..."
 alembic upgrade head
 
 echo "[start] Launching API..."
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+# Allow configuring which proxy IPs are trusted for X-Forwarded-* headers.
+# Default to the current Nginx container IP if not provided.
+# You can override this at runtime with FORWARDED_ALLOW_IPS (comma-separated list),
+# e.g. "172.18.0.5,127.0.0.1" or "*" (trust all — not recommended).
+FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-172.18.0.5}
+echo "[start] Using forwarded-allow-ips=$FORWARDED_ALLOW_IPS"
+
+exec uvicorn main:app \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --proxy-headers \
+  --forwarded-allow-ips "$FORWARDED_ALLOW_IPS"
