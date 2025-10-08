@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, BigInteger, String, Date
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, BigInteger, String, Date, DateTime, func
 from database import Base
 
 class Users(Base):
@@ -9,7 +9,7 @@ class Users(Base):
     first_name = Column(String, index=True)
     last_name = Column(String, index=True)
     email = Column(String, index=True)
-    password = Column(String)
+    password = Column(String, index=True)
     temp_password = Column(Boolean, default=True, nullable=False, server_default="true") # Force user to change password on first login
     discord_id = Column(String, index=True, nullable=True)
     inscription_date = Column(Date, index=True, nullable=True)
@@ -31,6 +31,23 @@ class Users(Base):
     privileges = Column(String, index=True, nullable=True) # Staff / Admin / Owner
     # Version des refresh tokens : incrémentée pour invalider tous les anciens
     token_version = Column(Integer, default=0, nullable=False, server_default="0")
+
+class Notifications(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id")) 
+    title = Column(String, index=True)
+    message = Column(String, index=True)
+    redirect_to = Column(String, index=True, nullable=True) # URL to redirect when clicking on the notification
+    is_read = Column(Boolean, default=False, nullable=False, server_default="false")
+    # Horodatage de création: timezone-aware, valeur par défaut côté DB
+    created_at = Column(
+        DateTime(timezone=True),
+        index=True,
+        nullable=False,
+        server_default=func.now(),
+    )
 
 class Proprietaires(Base):
     __tablename__ = "proprietaires"

@@ -21,6 +21,8 @@ import fnpc
 import infractions
 import fpr
 import siv
+import notifications
+import notifications_public
 
 import public
 from auth import get_current_user
@@ -35,16 +37,22 @@ app = FastAPI(
 app.title = "Neogend API"
 app.version = str(os.getenv("APP_VERSION", "Unknown"))
 START_TIME = time.time()
-app.include_router(auth.router)
+# Gestion des systèmes par les Admins
+
 app.include_router(admin.router)
-app.include_router(connected.router)
 app.include_router(proprietaires.router)
 app.include_router(fnpc.router)
 app.include_router(infractions.router)
 app.include_router(fpr.router)
 app.include_router(siv.router)
+app.include_router(notifications.router)
 
+# Routes publiques
 app.include_router(public.router)
+app.include_router(auth.router)
+app.include_router(connected.router)
+app.include_router(notifications_public.router)
+
 
 
 # Détermine dynamiquement les origines CORS autorisées

@@ -59,12 +59,23 @@ async def change_password(password_change: PasswordChangeRequest, db: db_depende
     if not user_db:
         raise HTTPException(status_code=404, detail="User not found")
     if not bcrypt_context.verify(password_change.old_password, user_db.password):  # type: ignore
+        api_log("password.change.failed", level="CRITICAL", request=request, tags=["users", "password"], user_id=user_db.id,email=user_db.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
         raise HTTPException(status_code=400, detail="Old password is incorrect")
 
     user_db.token_version += 1 #type: ignore
     user_db.password = bcrypt_context.hash(password_change.new_password)  # type: ignore
     user_db.temp_password = False # type: ignore
-    api_log("password.change", level="WARNING", request=request, tags=["users", "password"], user_id=user_db.id,email=user_db.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("password.change", level="CRITICAL", request=request, tags=["users", "password"], user_id=user_db.id,email=user_db.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     db.commit()
     db.refresh(user_db)
     return {"message": "Password changed successfully"}
+
+@router.post("/user/discard_all_sessions/")
+async def discard_all_sessions(db: db_dependency, user: user_dependency, request: Request):
+    user_db = db.query(Users).filter(Users.id == user.id).first()
+    if not user_db:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_db.token_version += 1  # type: ignore
+    db.commit()
+    api_log("session.discard_all", level="CRITICAL", request=request, tags=["users", "session"], user_id=user_db.id,email=user_db.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    return {"message": "All sessions discarded successfully"}

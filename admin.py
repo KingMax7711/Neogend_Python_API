@@ -94,7 +94,7 @@ async def read_specific_user(user_id: int, db: db_dependency, request: Request, 
     if not user:
         api_log("users.read_specific.failed", level="INFO", request=request, tags=["users", "read"], user_id=current_user.id, email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
         raise HTTPException(status_code=404, detail="User not found")
-    api_log("users.read_specific", level="INFO", request=request, tags=["users", "read"], user_id=current_user.id, email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("users.read_specific", level="INFO", request=request, tags=["users", "read"], user_id=current_user.id, email=current_user.email, data={"checked_user_id": user.id, "checked_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return user
 
 @router.post("/set_user_privileges/{user_id}")
@@ -109,7 +109,7 @@ async def set_user_privileges(user_id: int, db: db_dependency, request: Request,
         raise HTTPException(status_code=403, detail="Cannot change privileges of protected users")
     user.privileges = privilege # type: ignore
     db.commit()
-    api_log("admin.set_user_privileges", level="INFO", request=request, tags=["admin", "set_privileges"], user_id=current_user.id,email=current_user.email, new_privilege=privilege, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("admin.set_user_privileges", level="INFO", request=request, tags=["admin", "set_privileges"], user_id=current_user.id,email=current_user.email, data={"changed_user_id": user.id, "changed_user_nipol": user.rp_nipol, "new_privilege": privilege}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "User privileges updated"}
 
 
@@ -122,7 +122,7 @@ async def delete_user(user_id: int, db: db_dependency, request: Request, current
         raise HTTPException(status_code=403, detail="Cannot delete protected users")
     db.delete(user)
     db.commit()
-    api_log("admin.delete_user", level="WARNING", request=request, tags=["admin", "delete_user"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("admin.delete_user", level="WARNING", request=request, tags=["admin", "delete_user"], user_id=current_user.id,email=current_user.email, data={"deleted_user_id": user.id, "deleted_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "User deleted successfully"}
 
 # ---------- Registration ----------
@@ -154,7 +154,7 @@ async def register_user(user: UserCreate, db: db_dependency, request: Request, c
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
-        api_log("admin.register_user", level="INFO", request=request, tags=["admin", "register_user"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+        api_log("admin.register_user", level="INFO", request=request, tags=["admin", "register_user"], user_id=current_user.id,email=current_user.email,data={"created_user_id": db_user.id, "created_user_nipol": db_user.rp_nipol} ,correlation_id=request.headers.get("x-correlation-id")) # type: ignore
         return {"message": "User registered successfully"}
     except Exception as e:
         db.rollback()
@@ -204,7 +204,7 @@ async def update_user(user_id: int, user_update: UserUpdate, db: db_dependency, 
 
     db.commit()
     db.refresh(user)
-    api_log("admin.update_user", level="INFO", request=request, tags=["admin", "update_user"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("admin.update_user", level="INFO", request=request, tags=["admin", "update_user"], user_id=current_user.id,email=current_user.email, data={"updated_user_id": user.id, "updated_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return user
 
 class PasswordUpdate(BaseModel):
@@ -220,5 +220,26 @@ async def update_password(user_id: int, body: PasswordUpdate, db: db_dependency,
     user.password = bcrypt_context.hash(body.new_password)  # type: ignore
     user.temp_password = True # type: ignore
     db.commit()
-    api_log("admin.update_password", level="INFO", request=request, tags=["admin", "update_password"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    api_log("admin.update_password", level="CRITICAL", request=request, tags=["admin", "update_password"], user_id=current_user.id,email=current_user.email,data={"updated_user_id": user.id, "updated_user_nipol": user.rp_nipol} ,correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "Password updated"}
+
+@router.post("/users/disconnect_all")
+async def disconnect_all_users(db: db_dependency, request: Request, current_user: user_dependency):
+    users = db.query(Users).all()
+    for user in users:
+        user.token_version += 1  # type: ignore # Incrémente la version du token pour forcer la déconnexion
+    db.commit()
+    api_log("admin.disconnect_all_users", level="CRITICAL", request=request, tags=["admin", "disconnect_all"], user_id=current_user.id,email=current_user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    return {"message": "All users disconnected"}
+
+@router.post("/users/disconnect/{user_id}")
+async def disconnect_user(user_id: int, db: db_dependency, request: Request, current_user: user_dependency):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.email in protectedUsers:
+        raise HTTPException(status_code=403, detail="Cannot disconnect protected users")
+    user.token_version += 1  # type: ignore # Incrémente la version du token pour forcer la déconnexion
+    db.commit()
+    api_log("admin.disconnect_user", level="CRITICAL", request=request, tags=["admin", "disconnect_user"], user_id=current_user.id,email=current_user.email, data={"disconnected_user_id": user.id, "disconnected_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    return {"message": "User disconnected"}

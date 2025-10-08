@@ -81,7 +81,7 @@ async def login_for_acces_token(form_data: Annotated[OAuth2PasswordRequestForm, 
         api_log("login.failed", level="INFO", request=request, tags=["auth", "login"], email=form_data.username, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect nipol or password",
+            detail="Identifiants invalides",
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token(user.rp_nipol, user.id, user.token_version) # type: ignore

@@ -15,6 +15,8 @@ def connection_required(current_user: Annotated[models.Users, Depends(get_curren
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
     if current_user.rp_qualif not in can_see:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    if current_user.inscription_status != "valid": # type: ignore
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not validated")
     return current_user
 
 router = APIRouter(
