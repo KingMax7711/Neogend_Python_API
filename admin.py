@@ -40,7 +40,7 @@ class UserCreate(BaseModel):
     rp_last_name: str | None = "inconnu"
     rp_grade: str | None = "inconnu"
     rp_affectation: str | None = "inconnu"
-    rp_qualif: str | None = "afp" 
+    rp_qualification: str | None = "afp" 
     rp_nipol: str | None = "inconnu"
     rp_server: str | None = "inconnu"
     rp_service: str | None = "inconnu"  # Police(PN) / Gendarmerie(GN) / Police Municipale(PM)
@@ -174,7 +174,7 @@ async def register_user(user: UserCreate, db: db_dependency, request: Request, c
         discord_id=user.discord_id,
         rp_grade=user.rp_grade,
         rp_affectation=user.rp_affectation,
-        rp_qualif=user.rp_qualif,
+        rp_qualif=user.rp_qualification, #! ATTENTION rp_qualification n'existe pas dans la base de donnée, c'est rp_qualif
         rp_nipol=user.rp_nipol,
         rp_server=user.rp_server,
         rp_service=user.rp_service,
