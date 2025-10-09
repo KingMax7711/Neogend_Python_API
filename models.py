@@ -9,7 +9,7 @@ class Users(Base):
     first_name = Column(String, index=True)
     last_name = Column(String, index=True)
     email = Column(String, index=True)
-    password = Column(String, index=True)
+    password = Column(String)
     temp_password = Column(Boolean, default=True, nullable=False, server_default="true") # Force user to change password on first login
     discord_id = Column(String, index=True, nullable=True)
     inscription_date = Column(Date, index=True, nullable=True)
@@ -31,6 +31,9 @@ class Users(Base):
     privileges = Column(String, index=True, nullable=True) # Staff / Admin / Owner
     # Version des refresh tokens : incrémentée pour invalider tous les anciens
     token_version = Column(Integer, default=0, nullable=False, server_default="0")
+    # CGU & Privacy Policy acceptance
+    accepted_cgu = Column(Boolean, default=False, nullable=False, server_default="false")
+    accepted_privacy = Column(Boolean, default=False, nullable=False, server_default="false")
 
 class Notifications(Base):
     __tablename__ = "notifications"
@@ -73,7 +76,7 @@ class fnpc(Base):
     # Collones Local 
     id = Column(Integer, primary_key=True, index=True)
     neph = Column(BigInteger, index=True, unique=True)
-    numero_titre = Column(Integer, index=True)
+    numero_titre = Column(String, index=True)
     date_delivrance = Column(Date, index=True)
     prefecture_delivrance = Column(String, index=True)
     date_expiration = Column(Date, index=True)

@@ -26,7 +26,7 @@ router = APIRouter(
 class fnpcPublic(BaseModel):
     id: int
     neph: int
-    numero_titre: int
+    numero_titre: str
     date_delivrance: date
     prefecture_delivrance: str
     date_expiration: date
@@ -75,7 +75,7 @@ class fnpcPublic(BaseModel):
 
 class fnpcCreate(BaseModel):
     neph: int
-    numero_titre: int
+    numero_titre: str
     date_delivrance: date
     prefecture_delivrance: str
     date_expiration: date
@@ -124,7 +124,7 @@ class fnpcCreate(BaseModel):
 
 class fnpcUpdate(BaseModel):
     neph: int | None = None
-    numero_titre: int | None = None
+    numero_titre: str | None = None
     date_delivrance: date | None = None
     prefecture_delivrance: str | None = None
     date_expiration: date | None = None

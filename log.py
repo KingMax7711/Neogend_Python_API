@@ -144,9 +144,10 @@ def _ensure_logger() -> logging.Logger:
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
-    # Paths
+    # Paths (configurable via env var for Docker volumes in prod)
     base_dir = Path(__file__).resolve().parent
-    logs_dir = base_dir / "logs"
+    env_log_dir = os.getenv("APP_LOG_DIR")
+    logs_dir = Path(env_log_dir) if env_log_dir else (base_dir / "logs")
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     # Console handler (human readable)

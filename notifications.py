@@ -69,7 +69,7 @@ async def create_notification(notification: NotificationCreate, db: db_dependenc
     db.add(db_notification)
     db.commit()
     db.refresh(db_notification)
-    api_log("notifications.create", level="INFO", request=request, tags=["notifications", "create"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) #type: ignore
+    api_log("notifications.create", level="INFO", request=request, tags=["notifications", "create"], user_id=user.id,email=user.email, data={"notification_id": db_notification.id, "notify_user": notification.user_id},correlation_id=request.headers.get("x-correlation-id")) #type: ignore
     return db_notification
 
 @router.post("/create_all/", response_model=NotificationPublic)

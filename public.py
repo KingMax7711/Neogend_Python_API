@@ -58,7 +58,7 @@ class fnpcPublic(BaseModel):
 
     id: int
     neph: int
-    numero_titre: int
+    numero_titre: str
     date_delivrance: date
     prefecture_delivrance: str
     date_expiration: date
