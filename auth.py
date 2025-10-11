@@ -84,6 +84,9 @@ async def login_for_acces_token(form_data: Annotated[OAuth2PasswordRequestForm, 
             detail="Identifiants invalides",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    db_user = db.query(Users).filter(Users.id == user.id).first()
+    if db_user is None or db_user.inscription_status == "suspended":  # type: ignore
+        raise HTTPException(status_code=403, detail="Votre compte est suspendu. ")
     access_token = create_access_token(user.rp_nipol, user.id, user.token_version) # type: ignore
     refresh_token = create_refresh_token(user.rp_nipol, user.id, user.token_version) # type: ignore
 
@@ -128,6 +131,10 @@ async def refresh_access_token(request: Request, db: db_dependency):
     # Vérifier la version stockée
     if ver is None or ver != user.token_version:  # type: ignore
         raise HTTPException(status_code=403, detail="Refresh token invalidated")
+    
+    # Vérifier si l'utilisateur est suspendu
+    if user.inscription_status == "suspended":  # type: ignore
+        raise HTTPException(status_code=403, detail="User is suspended")
 
     new_access = create_access_token(user.rp_nipol, user.id, user.token_version) # type: ignore
     api_log("token.refresh", level="INFO", request=request, tags=["auth", "refresh"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
@@ -166,6 +173,8 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: db
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if user.inscription_status == "suspended":  # type: ignore
+        raise HTTPException(status_code=403, detail="User is suspended")
     # Optionnel : vérifier version pour les access tokens si on veut force logout global
     if ver is not None and ver != user.token_version:  # type: ignore
         raise HTTPException(status_code=403, detail="Token version invalidated")

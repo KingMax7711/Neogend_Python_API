@@ -68,6 +68,8 @@ class UserAdminView(BaseModel):
     rp_server: str | None
     rp_service: str | None  # Police(PN) / Gendarmerie(GN) / Police Municipale(PM)
     privileges: str 
+    accepted_cgu: bool
+    accepted_privacy: bool
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -299,3 +301,54 @@ async def disconnect_user(user_id: int, db: db_dependency, request: Request, cur
     db.commit()
     api_log("admin.disconnect_user", level="CRITICAL", request=request, tags=["admin", "disconnect_user"], user_id=current_user.id,email=current_user.email, data={"disconnected_user_id": user.id, "disconnected_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "User disconnected"}
+
+@router.post("/user/suspend/{user_id}")
+async def suspend_user(user_id: int, db: db_dependency, request: Request, current_user: user_dependency):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.email in protectedUsers:
+        raise HTTPException(status_code=403, detail="Cannot suspend protected users")
+    if user.privileges not in dicoAllowToChange[current_user.privileges]: # type: ignore
+        raise HTTPException(status_code=403, detail="Cannot suspend user with equal or higher privileges")
+    user.inscription_status = "suspended"  # type: ignore
+    user.token_version += 1  # type: ignore # Incrémente la version du token pour forcer la déconnexion
+    db.commit()
+    api_log("admin.suspend_user", level="CRITICAL", request=request, tags=["admin", "suspend_user"], user_id=current_user.id,email=current_user.email, data={"suspended_user_id": user.id, "suspended_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    return {"message": "User suspended"}
+
+@router.post("/user/reactivate/{user_id}")
+async def reactivate_user(user_id: int, db: db_dependency, request: Request, current_user: user_dependency):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.email in protectedUsers:
+        raise HTTPException(status_code=403, detail="Cannot reactivate protected users")
+    if user.privileges not in dicoAllowToChange[current_user.privileges]: # type: ignore
+        raise HTTPException(status_code=403, detail="Cannot reactivate user with equal or higher privileges")
+    user.inscription_status = "valid"  # type: ignore
+    db.commit()
+    api_log("admin.reactivate_user", level="CRITICAL", request=request, tags=["admin", "reactivate_user"], user_id=current_user.id,email=current_user.email, data={"reactivated_user_id": user.id, "reactivated_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    return {"message": "User reactivated"}
+
+@router.post("/user/reset_inscription/{user_id}")
+async def reset_inscription(user_id: int, db: db_dependency, request: Request, current_user: user_dependency):
+    user = db.query(Users).filter(Users.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.email in protectedUsers:
+        raise HTTPException(status_code=403, detail="Cannot reset inscription of protected users")
+    if user.privileges not in dicoAllowToChange[current_user.privileges]: # type: ignore
+        raise HTTPException(status_code=403, detail="Cannot reset inscription of user with equal or higher privileges")
+    user.inscription_status = "pending"  # type: ignore
+    user.first_name = "inconnu"  # type: ignore
+    user.last_name = "inconnu"  # type: ignore
+    user.email = "inconnu"  # type: ignore
+    user.rp_gender = "male"  # type: ignore
+    user.rp_birthdate = date.today()  # type: ignore
+    user.accepted_cgu = False  # type: ignore
+    user.accepted_privacy = False  # type: ignore
+    user.token_version += 1  # type: ignore # Incrémente la version du token pour forcer la déconnexion
+    db.commit()
+    api_log("admin.reset_inscription", level="CRITICAL", request=request, tags=["admin", "reset_inscription"], user_id=current_user.id,email=current_user.email, data={"reseted_user_id": user.id, "reseted_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    return {"message": "User inscription reseted"}
