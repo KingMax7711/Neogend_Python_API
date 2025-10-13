@@ -92,3 +92,24 @@ async def create_notification_all(notification: NotificationCreateAll, db: db_de
         raise HTTPException(status_code=400, detail="No users found to send notifications")
     api_log("notifications.create_all", level="INFO", request=request, tags=["notifications", "create_all"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) #type: ignore
     return last_notification
+
+@router.post("/create_all_staff/", response_model=NotificationPublic)
+async def create_notification_all_staff(notification: NotificationCreateAll, db: db_dependency, request: Request, user: user_dependency):
+    users = db.query(models.Users).filter(models.Users.privileges.in_(["admin", "owner", "mod"])).all()
+    last_notification = None
+    for u in users:
+        db_notification = models.Notifications(
+            user_id=u.id,
+            title=notification.title,
+            message=notification.message,
+            redirect_to=notification.redirect_to,
+            is_read=False
+        )
+        db.add(db_notification)
+        db.commit()
+        db.refresh(db_notification)
+        last_notification = db_notification
+    if last_notification is None:
+        raise HTTPException(status_code=400, detail="No staff users found to send notifications")
+    api_log("notifications.create_all_staff", level="INFO", request=request, tags=["notifications", "create_all_staff"], user_id=user.id,email=user.email, correlation_id=request.headers.get("x-correlation-id")) #type: ignore
+    return last_notification
