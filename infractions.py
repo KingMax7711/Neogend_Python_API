@@ -106,6 +106,12 @@ async def create_infraction(infraction: infractionCreate, db: db_dependency, use
         db.query(models.fnpc).filter(models.fnpc.neph == infraction.neph).one()
     except Exception:
         raise HTTPException(status_code=404, detail="NEPH not matched with any FNPC")
+    
+    matchFnpc = db.query(models.fnpc).filter(models.fnpc.neph == infraction.neph).one()
+    matchFnpc.points -= infraction.points #type: ignore
+    if matchFnpc.points < 0: #type: ignore
+        matchFnpc.points = 0 #type: ignore
+    db.commit()
     db.add(db_infraction)
     db.commit()
     db.refresh(db_infraction)
