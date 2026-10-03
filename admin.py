@@ -2,6 +2,7 @@ from token import RPAR
 from database import SessionLocal
 from fastapi import FastAPI, Depends, HTTPException, APIRouter, status, Body, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, ConfigDict
 from typing import Annotated, List
 from models import Users  # Add this import for the Users model
@@ -147,12 +148,13 @@ async def delete_user(user_id: int, db: db_dependency, request: Request, current
     if user.id == current_user.id: # type: ignore
         raise HTTPException(status_code=403, detail="Cannot delete yourself")
     
-    notifications = db.query(models.Notifications).filter(models.Notifications.user_id == user.id).all()
-    for notification in notifications:
-        db.delete(notification)
-    db.commit()
-    db.delete(user)
-    db.commit()
+    try:
+        db.query(models.Notifications).filter(models.Notifications.user_id == user.id).delete(synchronize_session=False)
+        db.delete(user)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Suppression impossible : des éléments liés existent encore")
     api_log("admin.delete_user", level="WARNING", request=request, tags=["admin", "delete_user"], user_id=current_user.id,email=current_user.email, data={"deleted_user_id": user.id, "deleted_user_nipol": user.rp_nipol}, correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "User deleted successfully"}
 

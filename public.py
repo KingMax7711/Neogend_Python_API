@@ -1,6 +1,7 @@
 from datetime import date
 from database import SessionLocal
 from fastapi import FastAPI, Depends, HTTPException, APIRouter, status, Body, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
 from typing import Annotated, List
@@ -225,6 +226,21 @@ async def read_fnpc(fnpc_id: int, db: db_dependency, user: user_dependency, requ
         raise HTTPException(status_code=404, detail="fnpc not found")
     api_log("fnpc.read", level="INFO", request=request,email=user.email, user_id=user.id, tags=["fnpc", "read"], correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return fnpc
+
+class searchByTitreResult(BaseModel):
+    fnpc: List[fnpcPublic]
+    fpr: List[fprPublic]
+
+@router.get("/fnpc/search/by_titre/{numero_titre}/", response_model=searchByTitreResult)
+async def search_by_numero_titre(numero_titre: str, db: db_dependency, user: user_dependency, request: Request):
+    numero = numero_titre.strip().lower()
+    if not numero:
+        raise HTTPException(status_code=400, detail="Numéro de titre requis")
+    fnpcs = db.query(models.fnpc).filter(func.lower(models.fnpc.numero_titre) == numero).all()
+    prop_ids = {f.prop_id for f in fnpcs if f.prop_id is not None}
+    fprs = db.query(models.fpr).filter(models.fpr.prop_id.in_(prop_ids)).all() if prop_ids else []
+    api_log("fnpc.search_by_titre", level="INFO", request=request, email=user.email, user_id=user.id, tags=["fnpc", "search"], correlation_id=request.headers.get("x-correlation-id")) # type: ignore
+    return {"fnpc": fnpcs, "fpr": fprs}
 
 @router.get("/fpr/read/", response_model=List[fprPublic])
 async def read_all_fpr(db: db_dependency, user: user_dependency, request: Request):

@@ -2,6 +2,7 @@ from datetime import date
 from database import SessionLocal
 from fastapi import FastAPI, Depends, HTTPException, APIRouter, status, Body, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, ConfigDict
 from typing import Annotated, List
 from models import fpr  # Add this import for the Users model
@@ -150,7 +151,11 @@ async def delete_fpr(fpr_id: int, db: db_dependency, user: user_dependency, requ
     fpr_record = db.query(fpr).filter(fpr.id == fpr_id).first()
     if not fpr_record:
         raise HTTPException(status_code=404, detail="FPR not found")
-    db.delete(fpr_record)
-    db.commit()
+    try:
+        db.delete(fpr_record)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Suppression impossible : des éléments liés existent encore")
     api_log("fpr.delete", level="INFO", request=request,email=user.email, user_id=user.id, tags=["fpr", "delete"], correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"message": "FPR deleted successfully"}

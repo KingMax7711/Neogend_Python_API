@@ -2,6 +2,7 @@ from datetime import date
 from database import SessionLocal
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, ConfigDict
 from typing import Annotated, List
 import models
@@ -201,8 +202,12 @@ async def delete_siv(siv_id: int, db: db_dependency, user: user_dependency, requ
 	record = db.query(models.siv).filter(models.siv.id == siv_id).first()
 	if not record:
 		raise HTTPException(status_code=404, detail="siv record not found")
-	db.delete(record)
-	db.commit()
+	try:
+		db.delete(record)
+		db.commit()
+	except IntegrityError:
+		db.rollback()
+		raise HTTPException(status_code=409, detail="Suppression impossible : des éléments liés existent encore")
 	api_log("siv.delete", level="WARNING", request=request, email=user.email, user_id=user.id, tags=["siv", "delete"], correlation_id=request.headers.get("x-correlation-id"))  # type: ignore
 	return {"message": f"siv {siv_id} deleted successfully"}
 
