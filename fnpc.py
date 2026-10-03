@@ -2,6 +2,7 @@ from datetime import date
 from database import SessionLocal
 from fastapi import FastAPI, Depends, HTTPException, APIRouter, status, Body, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, ConfigDict
 from typing import Annotated, List
 from models import Proprietaires  # Add this import for the Users model
@@ -225,12 +226,34 @@ async def update_fnpc(fnpc_id: int, fnpc_update: fnpcUpdate, db: db_dependency, 
     api_log("fnpc.update", level="INFO", request=request, email=user.email, user_id=user.id, tags=["fnpc", "update"], correlation_id=request.headers.get("x-correlation-id"))  # type: ignore
     return record
 
+@router.get("/dependents/{fnpc_id}/")
+async def fnpc_dependents(fnpc_id: int, db: db_dependency, user: user_dependency):
+    record = db.query(models.fnpc).filter(models.fnpc.id == fnpc_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="fnpc not found")
+    infractions = db.query(models.infractions_routieres).filter(models.infractions_routieres.neph == record.neph).all()
+    fprs = db.query(models.fpr).filter(models.fpr.neph == record.neph).all()
+    return {
+        "deleted": {
+            "Infractions": [f"Infraction #{i.id} - {i.classe} ({i.date_infraction})" for i in infractions],
+        },
+        "detached": {
+            "FPR (lien FNPC retiré)": [{"label": f"FPR #{r.id}", "motif": r.motif_enregistrement} for r in fprs],
+        },
+    }
+
 @router.delete("/delete/{fnpc_id}/")
 async def delete_fnpc(fnpc_id: int, db: db_dependency, user: user_dependency, request: Request):
     fnpc = db.query(models.fnpc).filter(models.fnpc.id == fnpc_id).first()
     if not fnpc:
         raise HTTPException(status_code=404, detail="fnpc not found")
-    db.delete(fnpc)
-    db.commit()
+    try:
+        db.query(models.infractions_routieres).filter(models.infractions_routieres.neph == fnpc.neph).delete(synchronize_session=False)
+        db.query(models.fpr).filter(models.fpr.neph == fnpc.neph).update({models.fpr.neph: None}, synchronize_session=False)
+        db.delete(fnpc)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Suppression impossible : des éléments liés existent encore")
     api_log("fnpc.delete", level="WARNING", request=request,email=user.email, user_id=user.id, tags=["fnpc", "delete"], correlation_id=request.headers.get("x-correlation-id")) # type: ignore
     return {"detail": f"fnpc {fnpc_id} deleted"}
